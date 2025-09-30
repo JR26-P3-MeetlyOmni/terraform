@@ -9,5 +9,9 @@ resource "aws_ssm_parameter" "backend_db_connection_string" {
   type  = "SecureString"
   value = var.backend_db_connection_string
 }
-
+resource "aws_ssm_parameter" "backend_jwt_signing_key" {
+  name  = "/${var.name_prefix}/${var.env}/backend/JWT_SIGNING_KEY"
+  type  = "SecureString"
+  value = var.backend_jwt_signing_key
+}
 

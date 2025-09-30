@@ -14,3 +14,6 @@ variable "backend_db_connection_string" {
   type = string
 }
 
+variable "backend_jwt_signing_key" {
+  type = string
+}

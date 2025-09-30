@@ -44,12 +44,29 @@ output "ecs_task_role_arn" {
   value = module.ecs_iam.task_role_arn
 }
 
+output "ci_cd_role_arn" {
+  value = module.ci_cd_role.role_arn
+}
+
+output "ci_cd_role_name" {
+  value = module.ci_cd_role.role_name
+}
+
+output "ci_cd_policy_arn" {
+  value = module.ci_cd_role.policy_arn
+}
+
 output "ssm_frontend_api_param_arn" {
   value = module.ssm_parameters.frontend_param_arn
 }
 
 output "ssm_backend_db_connection_param_arn" {
   value     = module.ssm_parameters.backend_connection_param_arn
+  sensitive = true
+}
+
+output "ssm_backend_jwt_signing_key_param_arn" {
+  value     = module.ssm_parameters.backend_jwt_signing_key_param_arn
   sensitive = true
 }
 
@@ -65,8 +82,12 @@ output "cloudfront_distribution_domain_name" {
 
 
 
-output "ecs_frontend_cluster_id" {
-  value = module.ecs_frontend.cluster_id
+output "ecs_cluster_id" {
+  value = module.ecs_cluster.cluster_id
+}
+
+output "ecs_cluster_arn" {
+  value = module.ecs_cluster.cluster_arn
 }
 
 output "ecs_frontend_service_name" {
@@ -77,15 +98,27 @@ output "ecs_frontend_task_definition_arn" {
   value = module.ecs_frontend.task_definition_arn
 }
 
-
-output "ecs_backend_cluster_id" {
-  value = module.ecs_backend.cluster_id
-}
-
 output "ecs_backend_service_name" {
   value = module.ecs_backend.service_name
 }
 
 output "ecs_backend_task_definition_arn" {
   value = module.ecs_backend.task_definition_arn
+}
+
+output "rds_instance_id" {
+  value = module.rds.db_instance_id
+}
+
+output "rds_instance_endpoint" {
+  value = module.rds.db_instance_endpoint
+}
+
+output "rds_security_group_id" {
+  value = module.rds.security_group_id
+}
+
+output "rds_master_user_secret_arn" {
+  value     = module.rds.credentials_secret_arn
+  sensitive = true
 }

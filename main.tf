@@ -2,6 +2,12 @@ provider "aws" {
   region = var.region
 }
 
+data "aws_caller_identity" "current" {}
+
+locals {
+  backend_db_connection_string_resolved = var.env == "prod" && module.rds.connection_string != null ? module.rds.connection_string : var.backend_db_connection_string
+}
+
 module "ecr" {
   source = "./modules/ecr"
 
@@ -33,13 +39,35 @@ module "ecs_iam" {
   ecs_task_role      = var.ecs_task_role
 }
 
+module "ci_cd_role" {
+  source = "./modules/ci_cd_role"
+
+  name_prefix = var.name_prefix
+  env         = var.env
+  tags        = var.tags
+
+  github_oidc_subjects = var.github_oidc_subjects
+  kms_key_arns         = var.ci_cd_kms_key_arns
+  pass_role_arns = [
+    module.ecs_iam.execution_role_arn,
+    module.ecs_iam.task_role_arn
+  ]
+  ecr_repository_arns = [
+    for repo_name in [
+      module.ecr.frontend_repository_name,
+      module.ecr.backend_repository_name
+    ] : "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/${repo_name}"
+  ]
+}
+
 module "ssm_parameters" {
   source = "./modules/ssm_parameters"
 
   name_prefix                  = var.name_prefix
   env                          = var.env
   frontend_api_base_url        = var.frontend_api_base_url
-  backend_db_connection_string = var.backend_db_connection_string
+  backend_db_connection_string = local.backend_db_connection_string_resolved
+  backend_jwt_signing_key      = var.backend_jwt_signing_key
 }
 
 module "security" {
@@ -108,12 +136,20 @@ module "cloudwatch_logs" {
   retention_in_days = var.logs_retention_days
 }
 
-module "ecs_frontend" {
-  source = "./modules/ecs"
+module "ecs_cluster" {
+  source = "./modules/ecs_cluster"
 
-  env                            = var.env
-  tags                           = var.tags
-  cluster_name                   = "${var.name_prefix}-${var.env}-ecs-frontend"
+  cluster_name = "${var.name_prefix}-${var.env}-ecs"
+  tags         = var.tags
+}
+
+module "ecs_frontend" {
+  source = "./modules/ecs_service"
+
+  env  = var.env
+  tags = var.tags
+
+  cluster_arn                    = module.ecs_cluster.cluster_arn
   task_family                    = "${var.name_prefix}-${var.env}-frontend"
   execution_role_arn             = module.ecs_iam.execution_role_arn
   task_role_arn                  = module.ecs_iam.task_role_arn
@@ -138,11 +174,12 @@ module "ecs_frontend" {
 }
 
 module "ecs_backend" {
-  source = "./modules/ecs"
+  source = "./modules/ecs_service"
 
-  env                    = var.env
-  tags                   = var.tags
-  cluster_name           = "${var.name_prefix}-${var.env}-ecs-backend"
+  env  = var.env
+  tags = var.tags
+
+  cluster_arn            = module.ecs_cluster.cluster_arn
   task_family            = "${var.name_prefix}-${var.env}-backend"
   execution_role_arn     = module.ecs_iam.execution_role_arn
   task_role_arn          = module.ecs_iam.task_role_arn
@@ -163,7 +200,7 @@ module "ecs_backend" {
   environment_variables = {
     ASPNETCORE_ENVIRONMENT            = var.env
     ASPNETCORE_URLS                   = "http://0.0.0.0:${var.backend_container_port}"
-    "ConnectionStrings__MeetlyOmniDb" = var.backend_db_connection_string
+    "ConnectionStrings__MeetlyOmniDb" = local.backend_db_connection_string_resolved
     "Jwt__Issuer"                     = var.backend_jwt_issuer
     "Jwt__Audience"                   = var.backend_jwt_audience
     JWT_SIGNING_KEY                   = var.backend_jwt_signing_key
@@ -171,6 +208,34 @@ module "ecs_backend" {
   propagate_tags                 = "SERVICE"
   deployment_min_healthy_percent = 50
   deployment_max_percent         = 200
+}
+
+module "rds" {
+  source = "./modules/rds"
+
+  create      = var.env == "prod"
+  env         = var.env
+  name_prefix = var.name_prefix
+  tags        = var.tags
+
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.private_subnet_ids
+
+  allowed_security_group_ids = concat([module.security.ecs_backend_sg_id], var.rds_additional_allowed_security_group_ids)
+  allowed_cidr_blocks        = var.rds_allowed_cidr_blocks
+
+  instance_class          = var.rds_instance_class
+  allocated_storage       = var.rds_allocated_storage
+  storage_type            = var.rds_storage_type
+  engine_version          = var.rds_engine_version
+  database_name           = var.rds_database_name
+  master_username         = var.rds_master_username
+  multi_az                = var.rds_multi_az
+  backup_retention_period = var.rds_backup_retention_period
+  deletion_protection     = var.rds_deletion_protection
+  skip_final_snapshot     = var.rds_skip_final_snapshot
+  apply_immediately       = var.rds_apply_immediately
+  iam_auth_enabled        = var.rds_iam_auth_enabled
 }
 
 module "cloudfront" {

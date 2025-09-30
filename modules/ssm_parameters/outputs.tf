@@ -6,5 +6,8 @@ output "backend_connection_param_arn" {
   value     = aws_ssm_parameter.backend_db_connection_string.arn
   sensitive = true
 }
-
+output "backend_jwt_signing_key_param_arn" {
+  value     = aws_ssm_parameter.backend_jwt_signing_key.arn
+  sensitive = true
+}
 

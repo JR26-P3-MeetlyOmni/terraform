@@ -94,6 +94,22 @@ variable "ecs_task_role" {
   default     = "ecs-task-role"
 }
 
+variable "github_oidc_subjects" {
+  description = "GitHub OIDC subjects (repo:org/repo:ref:refs/heads/branch) allowed to assume the CI/CD role"
+  type        = list(string)
+  default = [
+    "repo:JR26-P3-MeetlyOmni/*:ref:refs/heads/main",
+    "repo:JR26-P3-MeetlyOmni/*:ref:refs/heads/main-biaojin",
+    "repo:JR26-P3-MeetlyOmni/*:environment:prod"
+  ]
+}
+
+variable "ci_cd_kms_key_arns" {
+  description = "KMS keys that the CI/CD role can use. Leave as [*] to allow all keys."
+  type        = list(string)
+  default     = ["*"]
+}
+
 #ssm parameter store
 variable "frontend_api_base_url" {
   type        = string
@@ -104,6 +120,7 @@ variable "backend_db_connection_string" {
   type        = string
   description = "Backend database connection string"
   sensitive   = true
+  default     = null
 }
 variable "backend_jwt_issuer" {
   type        = string
@@ -238,7 +255,87 @@ variable "cloudfront_origin_domain_name" {
   default     = ""
 }
 
+# RDS configuration
+variable "rds_instance_class" {
+  description = "RDS instance class"
+  type        = string
+  default     = "db.t3.micro"
+}
 
+variable "rds_allocated_storage" {
+  description = "Initial allocated storage for RDS (GB)"
+  type        = number
+  default     = 20
+}
 
+variable "rds_storage_type" {
+  description = "RDS storage type"
+  type        = string
+  default     = "gp2"
+}
 
+variable "rds_engine_version" {
+  description = "PostgreSQL engine version"
+  type        = string
+  default     = "15.14"
+}
 
+variable "rds_database_name" {
+  description = "Initial database name"
+  type        = string
+  default     = "meetlyomni"
+}
+
+variable "rds_master_username" {
+  description = "Master username for the RDS instance"
+  type        = string
+  default     = "dbadmin"
+}
+
+variable "rds_multi_az" {
+  description = "Whether to enable Multi-AZ deployment"
+  type        = bool
+  default     = false
+}
+
+variable "rds_backup_retention_period" {
+  description = "Automated backup retention period in days"
+  type        = number
+  default     = 7
+}
+
+variable "rds_deletion_protection" {
+  description = "Enable deletion protection for the RDS instance"
+  type        = bool
+  default     = true
+}
+
+variable "rds_skip_final_snapshot" {
+  description = "Skip final snapshot on instance deletion"
+  type        = bool
+  default     = true
+}
+
+variable "rds_apply_immediately" {
+  description = "Apply modifications immediately"
+  type        = bool
+  default     = false
+}
+
+variable "rds_iam_auth_enabled" {
+  description = "Enable IAM authentication for PostgreSQL"
+  type        = bool
+  default     = true
+}
+
+variable "rds_additional_allowed_security_group_ids" {
+  description = "Additional security group IDs allowed to access the RDS instance"
+  type        = list(string)
+  default     = []
+}
+
+variable "rds_allowed_cidr_blocks" {
+  description = "CIDR blocks allowed to access the RDS instance"
+  type        = list(string)
+  default     = []
+}
