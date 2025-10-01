@@ -339,3 +339,38 @@ variable "rds_allowed_cidr_blocks" {
   type        = list(string)
   default     = []
 }
+variable "static_site_aliases" {
+  description = "Custom domain aliases for the static site CloudFront distribution."
+  type        = list(string)
+  default     = []
+}
+
+variable "static_site_certificate_arn" {
+  description = "ACM certificate ARN (us-east-1) used by the static site CloudFront distribution."
+  type        = string
+  default     = ""
+}
+
+variable "static_site_default_root_object" {
+  description = "Default root object served for the static site."
+  type        = string
+  default     = "index.html"
+}
+
+variable "static_site_wait_for_deployment" {
+  description = "Whether to wait for the static site CloudFront distribution deployment to finish."
+  type        = bool
+  default     = false
+}
+
+variable "static_site_force_destroy" {
+  description = "Allow force destroy of the static assets bucket."
+  type        = bool
+  default     = false
+}
+
+variable "static_site_comment" {
+  description = "Optional comment for the static site CloudFront distribution."
+  type        = string
+  default     = ""
+}

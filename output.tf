@@ -122,3 +122,22 @@ output "rds_master_user_secret_arn" {
   value     = module.rds.credentials_secret_arn
   sensitive = true
 }
+output "static_site_bucket_id" {
+  value = module.s3.bucket_id
+}
+
+output "static_site_bucket_arn" {
+  value = module.s3.bucket_arn
+}
+
+output "static_site_bucket_regional_domain_name" {
+  value = module.s3.bucket_regional_domain_name
+}
+
+output "static_site_cloudfront_distribution_id" {
+  value = module.s3.cloudfront_distribution_id
+}
+
+output "static_site_cloudfront_domain_name" {
+  value = module.s3.cloudfront_domain_name
+}

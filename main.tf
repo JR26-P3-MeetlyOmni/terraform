@@ -2,6 +2,14 @@ provider "aws" {
   region = var.region
 }
 
+terraform {
+  backend "s3" {
+    bucket = "meetlyomni-tf-state-bucket-production"
+    key    = "terraform.tfstate"
+    region = "ap-southeast-2"
+  }
+}
+
 data "aws_caller_identity" "current" {}
 
 locals {
@@ -252,3 +260,18 @@ module "cloudfront" {
 
 
 
+module "s3" {
+  source = "./modules/s3"
+
+  bucket_name = "meetlyomni-prod-media"
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-${var.env}-media"
+  })
+
+  force_destroy       = var.static_site_force_destroy
+  aliases             = var.static_site_aliases
+  acm_certificate_arn = var.static_site_certificate_arn
+  default_root_object = var.static_site_default_root_object
+  wait_for_deployment = var.static_site_wait_for_deployment
+  comment             = var.static_site_comment != "" ? var.static_site_comment : "Static media for ${var.name_prefix}-${var.env}"
+}
