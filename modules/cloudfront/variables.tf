@@ -76,3 +76,73 @@ variable "comment" {
   default = "Frontend CloudFront distribution"
 }
 
+
+variable "enable_asset_origin" {
+  type    = bool
+  default = false
+}
+
+variable "asset_origin_domain_name" {
+  type    = string
+  default = ""
+
+  validation {
+    condition     = !var.enable_asset_origin || length(trimspace(var.asset_origin_domain_name)) > 0
+    error_message = "Provide asset_origin_domain_name when enable_asset_origin is true."
+  }
+}
+
+variable "asset_origin_id" {
+  type    = string
+  default = "s3-asset-origin"
+}
+
+variable "asset_path_pattern" {
+  type    = string
+  default = "/StaticFiles/assets/images/*"
+}
+
+variable "asset_viewer_protocol_policy" {
+  type    = string
+  default = "redirect-to-https"
+}
+
+variable "asset_allowed_methods" {
+  type    = list(string)
+  default = ["GET", "HEAD"]
+}
+
+variable "asset_cached_methods" {
+  type    = list(string)
+  default = ["GET", "HEAD"]
+}
+
+variable "asset_compress" {
+  type    = bool
+  default = true
+}
+
+variable "asset_min_ttl" {
+  type    = number
+  default = 0
+}
+
+variable "asset_default_ttl" {
+  type    = number
+  default = 0
+}
+
+variable "asset_max_ttl" {
+  type    = number
+  default = 0
+}
+
+variable "asset_forward_query_string" {
+  type    = bool
+  default = false
+}
+
+variable "asset_cookie_forward" {
+  type    = string
+  default = "none"
+}

@@ -5,3 +5,7 @@ output "distribution_domain_name" {
 output "distribution_id" {
   value = var.enabled ? aws_cloudfront_distribution.this[0].id : null
 }
+
+output "distribution_arn" {
+  value = var.enabled ? aws_cloudfront_distribution.this[0].arn : null
+}

@@ -13,7 +13,10 @@ terraform {
 data "aws_caller_identity" "current" {}
 
 locals {
-  backend_db_connection_string_resolved = var.env == "prod" && module.rds.connection_string != null ? module.rds.connection_string : var.backend_db_connection_string
+  backend_db_connection_string_override = trimspace(coalesce(var.backend_db_connection_string, ""))
+  backend_db_connection_string_resolved = local.backend_db_connection_string_override != "" ? var.backend_db_connection_string : module.rds.connection_string
+  ecs_cluster_name                      = "${var.name_prefix}-${var.env}-ecs"
+  amp_workspace_alias                   = trimspace(var.amp_workspace_alias) != "" ? var.amp_workspace_alias : "${var.name_prefix}-${var.env}-amp"
 }
 
 module "ecr" {
@@ -29,7 +32,7 @@ module "network" {
 
   env                    = var.env
   tags                   = var.tags
-  vpc_name               = var.vpc_name
+  vpc_name               = "${var.name_prefix}-${var.env}-vpc"
   vpc_cidr               = var.vpc_cidr
   vpc_azs                = var.vpc_azs
   public_subnets         = var.vpc_public_subnets
@@ -41,10 +44,12 @@ module "network" {
 module "ecs_iam" {
   source = "./modules/ecs_iam"
 
-  name_prefix        = var.name_prefix
-  env                = var.env
-  ecs_execution_role = var.ecs_execution_role
-  ecs_task_role      = var.ecs_task_role
+  name_prefix                      = var.name_prefix
+  env                              = var.env
+  ecs_execution_role               = var.ecs_execution_role
+  ecs_task_role                    = var.ecs_task_role
+  execution_additional_policy_arns = []
+  task_additional_policy_arns      = [module.monitoring.amp_remote_write_policy_arn]
 }
 
 module "ci_cd_role" {
@@ -147,8 +152,32 @@ module "cloudwatch_logs" {
 module "ecs_cluster" {
   source = "./modules/ecs_cluster"
 
-  cluster_name = "${var.name_prefix}-${var.env}-ecs"
-  tags         = var.tags
+  cluster_name              = local.ecs_cluster_name
+  enable_container_insights = var.enable_container_insights
+  tags                      = var.tags
+}
+
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  name_prefix = var.name_prefix
+  env         = var.env
+  tags        = var.tags
+
+  amp_workspace_alias                      = local.amp_workspace_alias
+  ecs_cluster_name                         = local.ecs_cluster_name
+  container_insights_log_retention_in_days = var.container_insights_log_retention_days
+  adot_log_retention_in_days               = var.adot_log_retention_days
+  grafana_cloud_account_id                 = var.grafana_cloud_account_id
+  grafana_cloud_external_id                = var.grafana_cloud_external_id
+}
+
+locals {
+  amp_remote_write_endpoint = format("%s/api/v1/remote_write", trimsuffix(module.monitoring.amp_workspace_endpoint, "/"))
+  adot_collector_config = templatefile("${path.module}/templates/adot-collector-config.yaml.tmpl", {
+    remote_write_endpoint = local.amp_remote_write_endpoint
+    region                = var.region
+  })
 }
 
 module "ecs_frontend" {
@@ -157,21 +186,22 @@ module "ecs_frontend" {
   env  = var.env
   tags = var.tags
 
-  cluster_arn                    = module.ecs_cluster.cluster_arn
-  task_family                    = "${var.name_prefix}-${var.env}-frontend"
-  execution_role_arn             = module.ecs_iam.execution_role_arn
-  task_role_arn                  = module.ecs_iam.task_role_arn
-  container_name                 = "frontend"
-  container_image                = var.frontend_image
-  container_port                 = var.frontend_container_port
-  cpu                            = var.frontend_cpu != null ? tostring(var.frontend_cpu) : "256"
-  memory                         = var.frontend_memory != null ? tostring(var.frontend_memory) : "512"
-  desired_count                  = var.desired_count_frontend
-  subnet_ids                     = module.network.private_subnet_ids
-  security_group_ids             = [module.security.ecs_frontend_sg_id]
-  target_group_arn               = module.alb_frontend.target_group_arn
-  assign_public_ip               = false
-  platform_version               = "1.4.0"
+  cluster_arn        = module.ecs_cluster.cluster_arn
+  task_family        = "${var.name_prefix}-${var.env}-frontend"
+  execution_role_arn = module.ecs_iam.execution_role_arn
+  task_role_arn      = module.ecs_iam.task_role_arn
+  container_name     = "frontend"
+  container_image    = var.frontend_image
+  container_port     = var.frontend_container_port
+  cpu                = var.frontend_cpu != null ? tostring(var.frontend_cpu) : "256"
+  memory             = var.frontend_memory != null ? tostring(var.frontend_memory) : "512"
+  desired_count      = var.desired_count_frontend
+  subnet_ids         = module.network.private_subnet_ids
+  security_group_ids = [module.security.ecs_frontend_sg_id]
+  target_group_arn   = module.alb_frontend.target_group_arn
+  assign_public_ip   = false
+  platform_version   = "1.4.0"
+
   enable_execute_command         = true
   log_group_name                 = module.cloudwatch_logs.frontend_log_group_name
   log_group_region               = var.region
@@ -179,6 +209,21 @@ module "ecs_frontend" {
   propagate_tags                 = "SERVICE"
   deployment_min_healthy_percent = 50
   deployment_max_percent         = 200
+
+  aws_region                 = var.region
+  log_stream_prefix          = "frontend"
+  enable_firelens            = var.enable_firelens
+  firelens_log_stream_prefix = "frontend"
+
+  enable_adot_collector      = var.enable_adot_collector
+  adot_log_group_name        = module.monitoring.adot_collector_log_group
+  adot_remote_write_endpoint = local.amp_remote_write_endpoint
+  adot_config_content        = local.adot_collector_config
+  adot_resource_attributes = {
+    "service.name"      = "${var.name_prefix}-${var.env}-frontend"
+    "service.namespace" = var.env
+    "ecs.cluster.name"  = local.ecs_cluster_name
+  }
 }
 
 module "ecs_backend" {
@@ -187,35 +232,53 @@ module "ecs_backend" {
   env  = var.env
   tags = var.tags
 
-  cluster_arn            = module.ecs_cluster.cluster_arn
-  task_family            = "${var.name_prefix}-${var.env}-backend"
-  execution_role_arn     = module.ecs_iam.execution_role_arn
-  task_role_arn          = module.ecs_iam.task_role_arn
-  container_name         = "meetly-omni-backend"
-  container_image        = var.backend_image
-  container_port         = var.backend_container_port
-  cpu                    = var.backend_cpu != null ? tostring(var.backend_cpu) : "512"
-  memory                 = var.backend_memory != null ? tostring(var.backend_memory) : "1024"
-  desired_count          = var.desired_count_backend
-  subnet_ids             = module.network.private_subnet_ids
-  security_group_ids     = [module.security.ecs_backend_sg_id]
-  target_group_arn       = module.alb_backend.target_group_arn
-  assign_public_ip       = false
-  platform_version       = "1.4.0"
+  cluster_arn        = module.ecs_cluster.cluster_arn
+  task_family        = "${var.name_prefix}-${var.env}-backend"
+  execution_role_arn = module.ecs_iam.execution_role_arn
+  task_role_arn      = module.ecs_iam.task_role_arn
+  container_name     = "meetly-omni-backend"
+  container_image    = var.backend_image
+  container_port     = var.backend_container_port
+  cpu                = var.backend_cpu != null ? tostring(var.backend_cpu) : "512"
+  memory             = var.backend_memory != null ? tostring(var.backend_memory) : "1024"
+  desired_count      = var.desired_count_backend
+  subnet_ids         = module.network.private_subnet_ids
+  security_group_ids = [module.security.ecs_backend_sg_id]
+  target_group_arn   = module.alb_backend.target_group_arn
+  assign_public_ip   = false
+  platform_version   = "1.4.0"
+
   enable_execute_command = true
   log_group_name         = module.cloudwatch_logs.backend_log_group_name
   log_group_region       = var.region
   environment_variables = {
-    ASPNETCORE_ENVIRONMENT            = var.env
-    ASPNETCORE_URLS                   = "http://0.0.0.0:${var.backend_container_port}"
-    "ConnectionStrings__MeetlyOmniDb" = local.backend_db_connection_string_resolved
-    "Jwt__Issuer"                     = var.backend_jwt_issuer
-    "Jwt__Audience"                   = var.backend_jwt_audience
-    JWT_SIGNING_KEY                   = var.backend_jwt_signing_key
+    ASPNETCORE_ENVIRONMENT = var.backend_aspnet_environment
+    ASPNETCORE_URLS        = "http://0.0.0.0:${var.backend_container_port}"
+    "Jwt__Issuer"          = var.backend_jwt_issuer
+    "Jwt__Audience"        = var.backend_jwt_audience
+  }
+
+  secret_environment_variables = {
+    "ConnectionStrings__MeetlyOmniDb" = module.ssm_parameters.backend_connection_param_arn
+    "JWT_SIGNING_KEY"                 = module.ssm_parameters.backend_jwt_signing_key_param_arn
   }
   propagate_tags                 = "SERVICE"
   deployment_min_healthy_percent = 50
   deployment_max_percent         = 200
+  aws_region                     = var.region
+  log_stream_prefix              = "backend"
+  enable_firelens                = var.enable_firelens
+  firelens_log_stream_prefix     = "backend"
+
+  enable_adot_collector      = var.enable_adot_collector
+  adot_log_group_name        = module.monitoring.adot_collector_log_group
+  adot_remote_write_endpoint = local.amp_remote_write_endpoint
+  adot_config_content        = local.adot_collector_config
+  adot_resource_attributes = {
+    "service.name"      = "${var.name_prefix}-${var.env}-backend"
+    "service.namespace" = var.env
+    "ecs.cluster.name"  = local.ecs_cluster_name
+  }
 }
 
 module "rds" {
@@ -246,15 +309,6 @@ module "rds" {
   iam_auth_enabled        = var.rds_iam_auth_enabled
 }
 
-module "cloudfront" {
-  source = "./modules/cloudfront"
-
-  enabled                = var.enable_cloudfront
-  origin_domain_name     = var.cloudfront_origin_domain_name != "" ? var.cloudfront_origin_domain_name : module.alb_frontend.lb_dns_name
-  aliases                = var.cloudfront_aliases
-  acm_certificate_arn    = var.cloudfront_certificate_arn
-  origin_protocol_policy = var.enable_https ? "https-only" : "http-only"
-}
 
 
 
@@ -268,10 +322,63 @@ module "s3" {
     Name = "${var.name_prefix}-${var.env}-media"
   })
 
-  force_destroy       = var.static_site_force_destroy
-  aliases             = var.static_site_aliases
-  acm_certificate_arn = var.static_site_certificate_arn
-  default_root_object = var.static_site_default_root_object
-  wait_for_deployment = var.static_site_wait_for_deployment
-  comment             = var.static_site_comment != "" ? var.static_site_comment : "Static media for ${var.name_prefix}-${var.env}"
+  force_destroy = var.static_site_force_destroy
 }
+
+module "cloudfront" {
+  source = "./modules/cloudfront"
+
+  enabled                = var.enable_cloudfront
+  origin_domain_name     = var.cloudfront_origin_domain_name != "" ? var.cloudfront_origin_domain_name : module.alb_frontend.lb_dns_name
+  aliases                = var.cloudfront_aliases
+  acm_certificate_arn    = var.cloudfront_certificate_arn
+  origin_protocol_policy = var.enable_https ? "https-only" : "http-only"
+
+  enable_asset_origin      = var.enable_cloudfront
+  asset_origin_domain_name = module.s3.bucket_regional_domain_name
+  asset_origin_id          = module.s3.bucket_regional_domain_name
+}
+
+
+
+
+
+
+
+
+
+
+
+data "aws_iam_policy_document" "media_bucket_cloudfront" {
+  count = var.enable_cloudfront ? 1 : 0
+
+  statement {
+    sid    = "AllowCloudFrontServicePrincipalReadOnly"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    actions   = ["s3:GetObject"]
+    resources = ["${module.s3.bucket_arn}/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [module.cloudfront.distribution_arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "media_cloudfront" {
+  count  = var.enable_cloudfront ? 1 : 0
+  bucket = module.s3.bucket_id
+  policy = data.aws_iam_policy_document.media_bucket_cloudfront[0].json
+}
+
+
+
+
+

@@ -14,3 +14,13 @@ variable "ecs_task_role" {
   type = string
 }
 
+variable "execution_additional_policy_arns" {
+  type    = list(string)
+  default = []
+}
+
+variable "task_additional_policy_arns" {
+  type    = list(string)
+  default = []
+}
+

@@ -6,12 +6,12 @@ variable "env" {
   type = string
 }
 
-variable "tags" {
-  type = map(string)
-}
-
 variable "vpc_name" {
   type = string
+}
+
+variable "tags" {
+  type = map(string)
 }
 
 variable "vpc_cidr" {

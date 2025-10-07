@@ -36,6 +36,41 @@ output "cw_log_group_backend" {
   value = module.cloudwatch_logs.backend_log_group_name
 }
 
+output "amp_workspace_id" {
+  value = module.monitoring.amp_workspace_id
+}
+
+output "amp_workspace_arn" {
+  value = module.monitoring.amp_workspace_arn
+}
+
+output "amp_workspace_endpoint" {
+  value = module.monitoring.amp_workspace_endpoint
+}
+
+output "amp_remote_write_policy_arn" {
+  value = module.monitoring.amp_remote_write_policy_arn
+}
+
+output "container_insights_performance_log_group" {
+  value = module.monitoring.container_insights_performance_log_group
+}
+
+output "container_insights_event_log_group" {
+  value = module.monitoring.container_insights_event_log_group
+}
+
+output "adot_collector_log_group" {
+  value = module.monitoring.adot_collector_log_group
+}
+
+output "grafana_amp_role_arn" {
+  value = module.monitoring.grafana_amp_role_arn
+}
+
+output "grafana_amp_policy_arn" {
+  value = module.monitoring.grafana_amp_policy_arn
+}
 output "ecs_execution_role_arn" {
   value = module.ecs_iam.execution_role_arn
 }
@@ -122,6 +157,11 @@ output "rds_master_user_secret_arn" {
   value     = module.rds.credentials_secret_arn
   sensitive = true
 }
+
+output "rds_connection_string" {
+  value     = module.rds.connection_string
+  sensitive = true
+}
 output "static_site_bucket_id" {
   value = module.s3.bucket_id
 }
@@ -134,10 +174,14 @@ output "static_site_bucket_regional_domain_name" {
   value = module.s3.bucket_regional_domain_name
 }
 
-output "static_site_cloudfront_distribution_id" {
-  value = module.s3.cloudfront_distribution_id
+
+
+
+
+
+output "amp_remote_write_endpoint" {
+  value = local.amp_remote_write_endpoint
 }
 
-output "static_site_cloudfront_domain_name" {
-  value = module.s3.cloudfront_domain_name
-}
+
+

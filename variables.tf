@@ -23,12 +23,6 @@ variable "region" {
   default     = "ap-southeast-2"
 }
 
-variable "vpc_name" {
-  description = "The name of the VPC"
-  type        = string
-  default     = "meetly-dev-vpc"
-}
-
 variable "vpc_cidr" {
   description = "The CIDR block of the VPC"
   type        = string
@@ -81,7 +75,53 @@ variable "logs_retention_days" {
   description = "CloudWatch Logs retention in days"
 }
 
-# IAM role
+variable "enable_container_insights" {
+  description = "Enable ECS CloudWatch Container Insights"
+  type        = bool
+  default     = true
+}
+
+variable "container_insights_log_retention_days" {
+  description = "Retention in days for ECS Container Insights log groups"
+  type        = number
+  default     = 30
+}
+
+variable "amp_workspace_alias" {
+  description = "Alias for the Amazon Managed Prometheus workspace"
+  type        = string
+  default     = ""
+}
+
+variable "enable_firelens" {
+  description = "Enable FireLens log routing for ECS services"
+  type        = bool
+  default     = true
+}
+
+variable "enable_adot_collector" {
+  description = "Deploy AWS Distro for OpenTelemetry collector sidecar in ECS services"
+  type        = bool
+  default     = true
+}
+
+variable "adot_log_retention_days" {
+  description = "Retention in days for ADOT collector CloudWatch log group"
+  type        = number
+  default     = 30
+}
+
+variable "grafana_cloud_account_id" {
+  description = "AWS account ID provided by Grafana Cloud for AMP access"
+  type        = string
+  default     = ""
+}
+
+variable "grafana_cloud_external_id" {
+  description = "External ID Grafana Cloud uses when assuming the AMP access role"
+  type        = string
+  default     = ""
+} # IAM role
 variable "ecs_execution_role" {
   description = "ecs task execution role name"
   type        = string
@@ -136,6 +176,11 @@ variable "backend_jwt_signing_key" {
   type        = string
   description = "Base64-encoded JWT signing key for backend API"
   sensitive   = true
+}
+variable "backend_aspnet_environment" {
+  description = "ASPNETCORE_ENVIRONMENT value for backend ECS tasks"
+  type        = string
+  default     = "Production"
 }
 # sg
 variable "sg_app_frontend" {
@@ -339,29 +384,9 @@ variable "rds_allowed_cidr_blocks" {
   type        = list(string)
   default     = []
 }
-variable "static_site_aliases" {
-  description = "Custom domain aliases for the static site CloudFront distribution."
-  type        = list(string)
-  default     = []
-}
 
-variable "static_site_certificate_arn" {
-  description = "ACM certificate ARN (us-east-1) used by the static site CloudFront distribution."
-  type        = string
-  default     = ""
-}
 
-variable "static_site_default_root_object" {
-  description = "Default root object served for the static site."
-  type        = string
-  default     = "index.html"
-}
 
-variable "static_site_wait_for_deployment" {
-  description = "Whether to wait for the static site CloudFront distribution deployment to finish."
-  type        = bool
-  default     = false
-}
 
 variable "static_site_force_destroy" {
   description = "Allow force destroy of the static assets bucket."
@@ -369,8 +394,11 @@ variable "static_site_force_destroy" {
   default     = false
 }
 
-variable "static_site_comment" {
-  description = "Optional comment for the static site CloudFront distribution."
-  type        = string
-  default     = ""
-}
+
+
+
+
+
+
+
+
